@@ -4,6 +4,7 @@ using AbstractShopService.Interfaces;
 using AbstractShopService.ViewModels;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace AbstractShopService.ImplementationsList
 {
@@ -18,69 +19,33 @@ namespace AbstractShopService.ImplementationsList
 
         public List<SafetySystemViewModel> GetList()
         {
-            List<SafetySystemViewModel> result = new List<SafetySystemViewModel>();
-            for (int i = 0; i < source.SafetySystem.Count; ++i)
-            {
-                string clientFIO = string.Empty;
-                for (int j = 0; j < source.Zakazchik.Count; ++j)
+            List<SafetySystemViewModel> result = source.Orders
+                .Select(rec => new SafetySystemViewModel
                 {
-                    if(source.Zakazchik[j].Id == source.SafetySystem[i].ClientId)
-                    {
-                        clientFIO = source.Zakazchik[j].ClientFIO;
-                        break;
-                    }
-                }
-                string productName = string.Empty;
-                for (int j = 0; j < source.BasicSecurityEquipment.Count; ++j)
-                {
-                    if (source.BasicSecurityEquipment[j].Id == source.SafetySystem[i].ProductId)
-                    {
-                        productName = source.BasicSecurityEquipment[j].ProductName;
-                        break;
-                    }
-                }
-                string implementerFIO = string.Empty;
-                if(source.SafetySystem[i].ImplementerId.HasValue)
-                {
-                    for (int j = 0; j < source.Administrant.Count; ++j)
-                    {
-                        if (source.Administrant[j].Id == source.SafetySystem[i].ImplementerId.Value)
-                        {
-                            implementerFIO = source.Administrant[j].AdministrantFIO;
-                            break;
-                        }
-                    }
-                }
-                result.Add(new SafetySystemViewModel
-                {
-                    Id = source.SafetySystem[i].Id,
-                    ClientId = source.SafetySystem[i].ClientId,
-                    ClientFIO = clientFIO,
-                    ProductId = source.SafetySystem[i].ProductId,
-                    ProductName = productName,
-                    ImplementerId = source.SafetySystem[i].ImplementerId,
-                    ImplementerName = implementerFIO,
-                    Count = source.SafetySystem[i].Count,
-                    Sum = source.SafetySystem[i].Sum,
-                    DateCreate = source.SafetySystem[i].DateCreate.ToLongDateString(),
-                    DateImplement = source.SafetySystem[i].DateImplement?.ToLongDateString(),
-                    Status = source.SafetySystem[i].Status.ToString()
-                });
-            }
+                    Id = rec.Id,
+                    ClientId = rec.ClientId,
+                    ProductId = rec.ProductId,
+                    ImplementerId = rec.ImplementerId,
+                    DateCreate = rec.DateCreate.ToLongDateString(),
+                    DateImplement = rec.DateImplement?.ToLongDateString(),
+                    Status = rec.Status.ToString(),
+                    Count = rec.Count,
+                    Sum = rec.Sum,
+                    ClientFIO = source.Clients
+                                    .FirstOrDefault(recC => recC.Id == rec.ClientId)?.ZakazchikFIO,
+                    ProductName = source.Products
+                                    .FirstOrDefault(recP => recP.Id == rec.ProductId)?.ProductName,
+                    ImplementerName = source.Administrant
+                                    .FirstOrDefault(recI => recI.Id == rec.ImplementerId)?.AdministrantFIO
+                })
+                .ToList();
             return result;
         }
 
-        public void CreateOrder(SafetySystemBM model)
+        public void CreateOrder(SafetySystemBindingModel model)
         {
-            int maxId = 0;
-            for (int i = 0; i < source.SafetySystem.Count; ++i)
-            {
-                if (source.SafetySystem[i].Id > maxId)
-                {
-                    maxId = source.Zakazchik[i].Id;
-                }
-            }
-            source.SafetySystem.Add(new SafetySystem
+            int maxId = source.Orders.Count > 0 ? source.Orders.Max(rec => rec.Id) : 0;
+            source.Orders.Add(new SafetySystem
             {
                 Id = maxId + 1,
                 ClientId = model.ClientId,
@@ -88,140 +53,98 @@ namespace AbstractShopService.ImplementationsList
                 DateCreate = DateTime.Now,
                 Count = model.Count,
                 Sum = model.Sum,
-                Status = SafetySystemStatus.Принят
+                Status = SafetySystemStatusStatus.Принят
             });
         }
 
-        public void TakeOrderInWork(SafetySystemBM model)
+        public void TakeOrderInWork(SafetySystemBindingModel model)
         {
-            int index = -1;
-            for (int i = 0; i < source.SafetySystem.Count; ++i)
-            {
-                if (source.SafetySystem[i].Id == model.Id)
-                {
-                    index = i;
-                    break;
-                }
-            }
-            if (index == -1)
+            SafetySystem element = source.Orders.FirstOrDefault(rec => rec.Id == model.Id);
+            if (element == null)
             {
                 throw new Exception("Элемент не найден");
             }
             // смотрим по количеству компонентов на складах
-            for(int i = 0; i < source.Equipment_BSEquipment.Count; ++i)
+            var productComponents = source.ProductComponents.Where(rec => rec.ProductId == element.ProductId);
+            foreach(var productComponent in productComponents)
             {
-                if(source.Equipment_BSEquipment[i].ProductId == source.SafetySystem[index].ProductId)
+                int countOnStocks = source.StockComponents
+                                            .Where(rec => rec.ComponentId == productComponent.ComponentId)
+                                            .Sum(rec => rec.Count);
+                if (countOnStocks < productComponent.Count * element.Count)
                 {
-                    int countOnStocks = 0;
-                    for(int j = 0; j < source.StoreRoomEquipments.Count; ++j)
-                    {
-                        if(source.StoreRoomEquipments[j].ComponentId == source.Equipment_BSEquipment[i].ComponentId)
-                        {
-                            countOnStocks += source.StoreRoomEquipments[j].Count;
-                        }
-                    }
-                    if(countOnStocks < source.Equipment_BSEquipment[i].Count * source.SafetySystem[index].Count)
-                    {
-                        for (int j = 0; j < source.Equipment.Count; ++j)
-                        {
-                            if (source.Equipment[j].Id == source.Equipment_BSEquipment[i].ComponentId)
-                            {
-                                throw new Exception("Не достаточно компонента " + source.Equipment[j].ComponentName + 
-                                    " требуется " + source.Equipment_BSEquipment[i].Count + ", в наличии " + countOnStocks);
-                            }
-                        }
-                    }
+                    var componentName = source.Components
+                                    .FirstOrDefault(rec => rec.Id == productComponent.ComponentId);
+                    throw new Exception("Не достаточно компонента " + componentName?.ComponentName +
+                        " требуется " + productComponent.Count + ", в наличии " + countOnStocks);
                 }
             }
             // списываем
-            for (int i = 0; i < source.Equipment_BSEquipment.Count; ++i)
+            foreach (var productComponent in productComponents)
             {
-                if (source.Equipment_BSEquipment[i].ProductId == source.SafetySystem[index].ProductId)
+                int countOnStocks = productComponent.Count * element.Count;
+                var stockComponents = source.StockComponents
+                                            .Where(rec => rec.ComponentId == productComponent.ComponentId);
+                foreach (var stockComponent in stockComponents)
                 {
-                    int countOnStocks = source.Equipment_BSEquipment[i].Count * source.SafetySystem[index].Count;
-                    for (int j = 0; j < source.StoreRoomEquipments.Count; ++j)
+                    // компонентов на одном слкаде может не хватать
+                    if (stockComponent.Count >= countOnStocks)
                     {
-                        if (source.StoreRoomEquipments[j].ComponentId == source.Equipment_BSEquipment[i].ComponentId)
-                        {
-                            // компонентов на одном слкаде может не хватать
-                            if (source.StoreRoomEquipments[j].Count >= countOnStocks)
-                            {
-                                source.StoreRoomEquipments[j].Count -= countOnStocks;
-                                break;
-                            }
-                            else
-                            {
-                                countOnStocks -= source.StoreRoomEquipments[j].Count;
-                                source.StoreRoomEquipments[j].Count = 0;
-                            }
-                        }
+                        stockComponent.Count -= countOnStocks;
+                        break;
+                    }
+                    else
+                    {
+                        countOnStocks -= stockComponent.Count;
+                        stockComponent.Count = 0;
                     }
                 }
             }
-            source.SafetySystem[index].ImplementerId = model.ImplementerId;
-            source.SafetySystem[index].DateImplement = DateTime.Now;
-            source.SafetySystem[index].Status = SafetySystemStatus.Выполняется;
+            element.ImplementerId = model.ImplementerId;
+            element.DateImplement = DateTime.Now;
+            element.Status = SafetySystemStatusStatus.Выполняется;
         }
 
         public void FinishOrder(int id)
         {
-            int index = -1;
-            for (int i = 0; i < source.SafetySystem.Count; ++i)
-            {
-                if (source.Zakazchik[i].Id == id)
-                {
-                    index = i;
-                    break;
-                }
-            }
-            if (index == -1)
+            SafetySystem element = source.Orders.FirstOrDefault(rec => rec.Id == id);
+            if (element == null)
             {
                 throw new Exception("Элемент не найден");
             }
-            source.SafetySystem[index].Status = SafetySystemStatus.Готов;
+            element.Status = SafetySystemStatusStatus.Готов;
         }
 
         public void PayOrder(int id)
         {
-            int index = -1;
-            for (int i = 0; i < source.SafetySystem.Count; ++i)
-            {
-                if (source.Zakazchik[i].Id == id)
-                {
-                    index = i;
-                    break;
-                }
-            }
-            if (index == -1)
+            SafetySystem element = source.Orders.FirstOrDefault(rec => rec.Id == id);
+            if (element == null)
             {
                 throw new Exception("Элемент не найден");
             }
-            source.SafetySystem[index].Status = SafetySystemStatus.Оплачен;
+            element.Status = SafetySystemStatusStatus.Оплачен;
         }
 
-        public void PutComponentOnStock(StoreRoomEquipmentsBM model)
+        public void PutComponentOnStock(StoreRoomEquipmentBindingModel model)
         {
-            int maxId = 0;
-            for (int i = 0; i < source.StoreRoomEquipments.Count; ++i)
+            StoreRoomEquipment element = source.StockComponents
+                                                .FirstOrDefault(rec => rec.StockId == model.StockId && 
+                                                                    rec.ComponentId == model.ComponentId);
+            if(element != null)
             {
-                if(source.StoreRoomEquipments[i].StockId == model.StockId && 
-                    source.StoreRoomEquipments[i].ComponentId == model.ComponentId)
-                {
-                    source.StoreRoomEquipments[i].Count += model.Count;
-                    return;
-                }
-                if (source.StoreRoomEquipments[i].Id > maxId)
-                {
-                    maxId = source.StoreRoomEquipments[i].Id;
-                }
+                element.Count += model.Count;
             }
-            source.StoreRoomEquipments.Add(new StoreRoomEquipments
+            else
             {
-                Id = ++maxId,
-                StockId = model.StockId,
-                ComponentId = model.ComponentId,
-                Count = model.Count
-            });
+                int maxId = source.StockComponents.Count > 0 ? source.StockComponents.Max(rec => rec.Id) : 0;
+                source.StockComponents.Add(new StoreRoomEquipment
+                {
+                    Id = ++maxId,
+                    StockId = model.StockId,
+                    ComponentId = model.ComponentId,
+                    Count = model.Count
+                });
+            }
         }
     }
 }

@@ -4,6 +4,7 @@ using AbstractShopService.Interfaces;
 using AbstractShopService.ViewModels;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace AbstractShopService.ImplementationsList
 {
@@ -18,88 +19,72 @@ namespace AbstractShopService.ImplementationsList
 
         public List<EquipmentViewModel> GetList()
         {
-            List<EquipmentViewModel> result = new List<EquipmentViewModel>();
-            for (int i = 0; i < source.Equipment.Count; ++i)
-            {
-                result.Add(new EquipmentViewModel
+            List<EquipmentViewModel> result = source.Components
+                .Select(rec => new EquipmentViewModel
                 {
-                    Id = source.Equipment[i].Id,
-                    ComponentName = source.Equipment[i].ComponentName
-                });
-            }
+                    Id = rec.Id,
+                    ComponentName = rec.ComponentName
+                })
+                .ToList();
             return result;
         }
 
         public EquipmentViewModel GetElement(int id)
         {
-            for (int i = 0; i < source.Equipment.Count; ++i)
+            Equipment element = source.Components.FirstOrDefault(rec => rec.Id == id);
+            if (element != null)
             {
-                if (source.Equipment[i].Id == id)
+                return new EquipmentViewModel
                 {
-                    return new EquipmentViewModel
-                    {
-                        Id = source.Equipment[i].Id,
-                        ComponentName = source.Equipment[i].ComponentName
-                    };
-                }
+                    Id = element.Id,
+                    ComponentName = element.ComponentName
+                };
             }
             throw new Exception("Элемент не найден");
         }
 
-        public void AddElement(EquipmentBM model)
+        public void AddElement(EquipmentBindingModel model)
         {
-            int maxId = 0;
-            for (int i = 0; i < source.Equipment.Count; ++i)
+            Equipment element = source.Components.FirstOrDefault(rec => rec.ComponentName == model.ComponentName);
+            if (element != null)
             {
-                if (source.Equipment[i].Id > maxId)
-                {
-                    maxId = source.Equipment[i].Id;
-                }
-                if (source.Equipment[i].ComponentName == model.ComponentName)
-                {
-                    throw new Exception("Уже есть компонент с таким названием");
-                }
+                throw new Exception("Уже есть компонент с таким названием");
             }
-            source.Equipment.Add(new Equipment
+            int maxId = source.Components.Count > 0 ? source.Components.Max(rec => rec.Id) : 0;
+            source.Components.Add(new Equipment
             {
                 Id = maxId + 1,
                 ComponentName = model.ComponentName
             });
         }
 
-        public void UpdElement(EquipmentBM model)
+        public void UpdElement(EquipmentBindingModel model)
         {
-            int index = -1;
-            for (int i = 0; i < source.Equipment.Count; ++i)
+            Equipment element = source.Components.FirstOrDefault(rec => 
+                                        rec.ComponentName == model.ComponentName && rec.Id != model.Id);
+            if (element != null)
             {
-                if (source.Equipment[i].Id == model.Id)
-                {
-                    index = i;
-                }
-                if (source.Equipment[i].ComponentName == model.ComponentName && 
-                    source.Equipment[i].Id != model.Id)
-                {
-                    throw new Exception("Уже есть компонент с таким названием");
-                }
+                throw new Exception("Уже есть компонент с таким названием");
             }
-            if (index == -1)
+            element = source.Components.FirstOrDefault(rec => rec.Id == model.Id);
+            if (element == null)
             {
                 throw new Exception("Элемент не найден");
             }
-            source.Equipment[index].ComponentName = model.ComponentName;
+            element.ComponentName = model.ComponentName;
         }
 
         public void DelElement(int id)
         {
-            for (int i = 0; i < source.Equipment.Count; ++i)
+            Equipment element = source.Components.FirstOrDefault(rec => rec.Id == id);
+            if (element != null)
             {
-                if (source.Equipment[i].Id == id)
-                {
-                    source.Equipment.RemoveAt(i);
-                    return;
-                }
+                source.Components.Remove(element);
             }
-            throw new Exception("Элемент не найден");
+            else
+            {
+                throw new Exception("Элемент не найден");
+            }
         }
     }
 }

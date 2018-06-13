@@ -4,6 +4,7 @@ using AbstractShopService.Interfaces;
 using AbstractShopService.ViewModels;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace AbstractShopService.ImplementationsList
 {
@@ -18,88 +19,82 @@ namespace AbstractShopService.ImplementationsList
 
         public List<AdministrantViewModel> GetList()
         {
-            List<AdministrantViewModel> result = new List<AdministrantViewModel>();
-            for (int i = 0; i < source.Administrant.Count; ++i)
-            {
-                result.Add(new AdministrantViewModel
+            List<AdministrantViewModel> result = source.Administrant
+                .Select(rec => new AdministrantViewModel
                 {
-                    Id = source.Administrant[i].Id,
-                    AdministrantFIO = source.Administrant[i].AdministrantFIO
-                });
-            }
+                    Id = rec.Id,
+                    ImplementerFIO = rec.AdministrantFIO
+                })
+                .ToList();
             return result;
+
+            List<AdministrantViewModel> result1 =
+                (from rec in source.Administrant select new AdministrantViewModel
+
+                {
+                Id = rec.Id,
+                    ImplementerFIO = rec.AdministrantFIO
+                })
+                .ToList();
+            return result1;
         }
 
         public AdministrantViewModel GetElement(int id)
         {
-            for (int i = 0; i < source.Administrant.Count; ++i)
+            Administrant element = source.Administrant.FirstOrDefault(rec => rec.Id == id);
+            if (element != null)
             {
-                if (source.Administrant[i].Id == id)
+                return new AdministrantViewModel
                 {
-                    return new AdministrantViewModel
-                    {
-                        Id = source.Administrant[i].Id,
-                        AdministrantFIO = source.Administrant[i].AdministrantFIO
-                    };
-                }
+                    Id = element.Id,
+                    ImplementerFIO = element.AdministrantFIO
+                };
             }
             throw new Exception("Элемент не найден");
         }
 
-        public void AddElement(AdministrantBM model)
+        public void AddElement(AdministrantBindingModel model)
         {
-            int maxId = 0;
-            for (int i = 0; i < source.Administrant.Count; ++i)
+            Administrant element = source.Administrant.FirstOrDefault(rec => rec.AdministrantFIO == model.ImplementerFIO);
+            if (element != null)
             {
-                if (source.Administrant[i].Id > maxId)
-                {
-                    maxId = source.Administrant[i].Id;
-                }
-                if (source.Administrant[i].AdministrantFIO == model.AdministrantFIO)
-                {
-                    throw new Exception("Уже есть сотрудник с таким ФИО");
-                }
+                throw new Exception("Уже есть сотрудник с таким ФИО");
             }
+            int maxId = source.Administrant.Count > 0 ? source.Administrant.Max(rec => rec.Id) : 0;
             source.Administrant.Add(new Administrant
             {
                 Id = maxId + 1,
-                AdministrantFIO = model.AdministrantFIO
+                AdministrantFIO = model.ImplementerFIO
             });
         }
 
-        public void UpdElement(AdministrantBM model)
+        public void UpdElement(AdministrantBindingModel model)
         {
-            int index = -1;
-            for (int i = 0; i < source.Administrant.Count; ++i)
+            Administrant element = source.Administrant.FirstOrDefault(rec =>
+                                        rec.AdministrantFIO == model.ImplementerFIO && rec.Id != model.Id);
+            if (element != null)
             {
-                if (source.Administrant[i].Id == model.Id)
-                {
-                    index = i;
-                }
-                if (source.Administrant[i].AdministrantFIO == model.AdministrantFIO && 
-                    source.Administrant[i].Id != model.Id)
-                {
-                    throw new Exception("Уже есть сотрудник с таким ФИО");
-                }
+                throw new Exception("Уже есть сотрудник с таким ФИО");
             }
-            if (index == -1)
+            element = source.Administrant.FirstOrDefault(rec => rec.Id == model.Id);
+            if (element == null)
             {
                 throw new Exception("Элемент не найден");
             }
-            source.Administrant[index].AdministrantFIO = model.AdministrantFIO;
+            element.AdministrantFIO = model.ImplementerFIO;
         }
 
         public void DelElement(int id)
         {
-            for (int i = 0; i < source.Administrant.Count; ++i)
+            Administrant element = source.Administrant.FirstOrDefault(rec => rec.Id == id);
+            if (element != null)
             {
-                if (source.Administrant[i].Id == id)
-                {
-                    source.Administrant.RemoveAt(i);
-                    return;
-                }
+                source.Administrant.Remove(element);
             }
-            throw new Exception("Элемент не найден");
+            else
+            {
+                throw new Exception("Элемент не найден");
+            }
         }
     }
 }

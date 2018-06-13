@@ -4,6 +4,7 @@ using AbstractShopService.Interfaces;
 using AbstractShopService.ViewModels;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace AbstractShopService.ImplementationsList
 {
@@ -18,87 +19,72 @@ namespace AbstractShopService.ImplementationsList
 
         public List<ZakazchikViewModel> GetList()
         {
-            List<ZakazchikViewModel> result = new List<ZakazchikViewModel>();
-            for (int i = 0; i < source.Zakazchik.Count; ++i)
-            {
-                result.Add(new ZakazchikViewModel
+            List<ZakazchikViewModel> result = source.Clients
+                .Select(rec => new ZakazchikViewModel
                 {
-                    Id = source.Zakazchik[i].Id,
-                    ClientFIO = source.Zakazchik[i].ClientFIO
-                });
-            }
+                    Id = rec.Id,
+                    ClientFIO = rec.ZakazchikFIO
+                })
+                .ToList();
             return result;
         }
 
         public ZakazchikViewModel GetElement(int id)
         {
-            for (int i = 0; i < source.Zakazchik.Count; ++i)
+            Zakazchik element = source.Clients.FirstOrDefault(rec => rec.Id == id);
+            if(element != null)
             {
-                if (source.Zakazchik[i].Id == id)
+                return new ZakazchikViewModel
                 {
-                    return new ZakazchikViewModel
-                    {
-                        Id = source.Zakazchik[i].Id,
-                        ClientFIO = source.Zakazchik[i].ClientFIO
-                    };
-                }
+                    Id = element.Id,
+                    ClientFIO = element.ZakazchikFIO
+                };
             }
             throw new Exception("Элемент не найден");
         }
 
-        public void AddElement(ZakazchikBM model)
+        public void AddElement(ZakazchikBindingModel model)
         {
-            int maxId = 0;
-            for (int i = 0; i < source.Zakazchik.Count; ++i)
+            Zakazchik element = source.Clients.FirstOrDefault(rec => rec.ZakazchikFIO == model.ClientFIO);
+            if(element != null)
             {
-                if (source.Zakazchik[i].Id > maxId)
-                {
-                    maxId = source.Zakazchik[i].Id;
-                }
-                if (source.Zakazchik[i].ClientFIO == model.ZakazchikFIO)
-                {
-                    throw new Exception("Уже есть клиент с таким ФИО");
-                }
+                throw new Exception("Уже есть клиент с таким ФИО");
             }
-            source.Zakazchik.Add(new Zakazchik {
+            int maxId = source.Clients.Count > 0 ? source.Clients.Max(rec => rec.Id) : 0;
+            source.Clients.Add(new Zakazchik
+            {
                 Id = maxId + 1,
-                ClientFIO = model.ZakazchikFIO
+                ZakazchikFIO = model.ClientFIO
             });
         }
 
-        public void UpdElement(ZakazchikBM model)
+        public void UpdElement(ZakazchikBindingModel model)
         {
-            int index = -1;
-            for (int i = 0; i < source.Zakazchik.Count; ++i)
+            Zakazchik element = source.Clients.FirstOrDefault(rec => 
+                                    rec.ZakazchikFIO == model.ClientFIO && rec.Id != model.Id);
+            if (element != null)
             {
-                if (source.Zakazchik[i].Id == model.Id)
-                {
-                    index = i;
-                }
-                if (source.Zakazchik[i].ClientFIO == model.ZakazchikFIO && 
-                    source.Zakazchik[i].Id != model.Id)
-                {
-                    throw new Exception("Уже есть клиент с таким ФИО");
-                }
+                throw new Exception("Уже есть клиент с таким ФИО");
             }
-            if (index == -1)
+            element = source.Clients.FirstOrDefault(rec => rec.Id == model.Id);
+            if (element == null)
             {
                 throw new Exception("Элемент не найден");
             }
-            source.Zakazchik[index].ClientFIO = model.ZakazchikFIO;
+            element.ZakazchikFIO = model.ClientFIO;
         }
 
         public void DelElement(int id)
         {
-            for (int i = 0; i < source.Zakazchik.Count; ++i)
+            Zakazchik element = source.Clients.FirstOrDefault(rec => rec.Id == id);
+            if (element != null)
             {
-                if (source.Zakazchik[i].Id == id)
-                {
-                    source.Zakazchik.RemoveAt(i);
-                    return;
-                }
+                source.Clients.Remove(element);
             }
-            throw new Exception("Элемент не найден");
+            else
+            {
+                throw new Exception("Элемент не найден");
+            }
         }
     }
 }

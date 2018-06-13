@@ -4,10 +4,11 @@ using AbstractShopService.Interfaces;
 using AbstractShopService.ViewModels;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace AbstractShopService.ImplementationsList
 {
-    public class ProductServiceList : IBasicSecurityEquipmentService
+    public class ProductServiceList : IBasicSecurityService
     {
         private DataListSingleton source;
 
@@ -16,249 +17,169 @@ namespace AbstractShopService.ImplementationsList
             source = DataListSingleton.GetInstance();
         }
 
-        public List<BasicSecurityEquipmentViewModel> GetList()
+        public List<BasicSecurityViewModel> GetList()
         {
-            List<BasicSecurityEquipmentViewModel> result = new List<BasicSecurityEquipmentViewModel>();
-            for (int i = 0; i < source.BasicSecurityEquipment.Count; ++i)
-            {
-                // требуется дополнительно получить список компонентов для изделия и их количество
-                List<Equipment_BSEquipmentViewModel> productComponents = new List<Equipment_BSEquipmentViewModel>();
-                for (int j = 0; j < source.Equipment_BSEquipment.Count; ++j)
+            List<BasicSecurityViewModel> result = source.Products
+                .Select(rec => new BasicSecurityViewModel
                 {
-                    if (source.Equipment_BSEquipment[j].ProductId == source.BasicSecurityEquipment[i].Id)
-                    {
-                        string componentName = string.Empty;
-                        for (int k = 0; k < source.Equipment.Count; ++k)
-                        {
-                            if (source.Equipment_BSEquipment[j].ComponentId == source.Equipment[k].Id)
+                    Id = rec.Id,
+                    ProductName = rec.ProductName,
+                    Price = rec.Price,
+                    ProductComponents = source.ProductComponents
+                            .Where(recPC => recPC.ProductId == rec.Id)
+                            .Select(recPC => new BasicSecurityEquipmentViewModel
                             {
-                                componentName = source.Equipment[k].ComponentName;
-                                break;
-                            }
-                        }
-                        productComponents.Add(new Equipment_BSEquipmentViewModel
-                        {
-                            Id = source.Equipment_BSEquipment[j].Id,
-                            ProductId = source.Equipment_BSEquipment[j].ProductId,
-                            ComponentId = source.Equipment_BSEquipment[j].ComponentId,
-                            ComponentName = componentName,
-                            Count = source.Equipment_BSEquipment[j].Count
-                        });
-                    }
-                }
-                result.Add(new BasicSecurityEquipmentViewModel
-                {
-                    Id = source.BasicSecurityEquipment[i].Id,
-                    ProductName = source.BasicSecurityEquipment[i].ProductName,
-                    Price = source.BasicSecurityEquipment[i].Price,
-                    ProductComponents = productComponents
-                });
-            }
+                                Id = recPC.Id,
+                                ProductId = recPC.ProductId,
+                                ComponentId = recPC.ComponentId,
+                                ComponentName = source.Components
+                                    .FirstOrDefault(recC => recC.Id == recPC.ComponentId)?.ComponentName,
+                                Count = recPC.Count
+                            })
+                            .ToList()
+                })
+                .ToList();
             return result;
         }
 
-        public BasicSecurityEquipmentViewModel GetElement(int id)
+        public BasicSecurityViewModel GetElement(int id)
         {
-            for (int i = 0; i < source.BasicSecurityEquipment.Count; ++i)
+            BasicSecurity element = source.Products.FirstOrDefault(rec => rec.Id == id);
+            if (element != null)
             {
-                // требуется дополнительно получить список компонентов для изделия и их количество
-                List<Equipment_BSEquipmentViewModel> productComponents = new List<Equipment_BSEquipmentViewModel>();
-                for (int j = 0; j < source.Equipment_BSEquipment.Count; ++j)
+                return new BasicSecurityViewModel
                 {
-                    if (source.Equipment_BSEquipment[j].ProductId == source.BasicSecurityEquipment[i].Id)
-                    {
-                        string componentName = string.Empty;
-                        for (int k = 0; k < source.Equipment.Count; ++k)
-                        {
-                            if (source.Equipment_BSEquipment[j].ComponentId == source.Equipment[k].Id)
+                    Id = element.Id,
+                    ProductName = element.ProductName,
+                    Price = element.Price,
+                    ProductComponents = source.ProductComponents
+                            .Where(recPC => recPC.ProductId == element.Id)
+                            .Select(recPC => new BasicSecurityEquipmentViewModel
                             {
-                                componentName = source.Equipment[k].ComponentName;
-                                break;
-                            }
-                        }
-                        productComponents.Add(new Equipment_BSEquipmentViewModel
-                        {
-                            Id = source.Equipment_BSEquipment[j].Id,
-                            ProductId = source.Equipment_BSEquipment[j].ProductId,
-                            ComponentId = source.Equipment_BSEquipment[j].ComponentId,
-                            ComponentName = componentName,
-                            Count = source.Equipment_BSEquipment[j].Count
-                        });
-                    }
-                }
-                if (source.BasicSecurityEquipment[i].Id == id)
-                {
-                    return new BasicSecurityEquipmentViewModel
-                    {
-                        Id = source.BasicSecurityEquipment[i].Id,
-                        ProductName = source.BasicSecurityEquipment[i].ProductName,
-                        Price = source.BasicSecurityEquipment[i].Price,
-                        ProductComponents = productComponents
-                    };
-                }
+                                Id = recPC.Id,
+                                ProductId = recPC.ProductId,
+                                ComponentId = recPC.ComponentId,
+                                ComponentName = source.Components
+                                        .FirstOrDefault(recC => recC.Id == recPC.ComponentId)?.ComponentName,
+                                Count = recPC.Count
+                            })
+                            .ToList()
+                };
             }
-
             throw new Exception("Элемент не найден");
         }
 
-        public void AddElement(BasicSecurityEquipmentBM model)
+        public void AddElement(BasSecurityBindingModel model)
         {
-            int maxId = 0;
-            for (int i = 0; i < source.BasicSecurityEquipment.Count; ++i)
+            BasicSecurity element = source.Products.FirstOrDefault(rec => rec.ProductName == model.ProductName);
+            if (element != null)
             {
-                if (source.BasicSecurityEquipment[i].Id > maxId)
-                {
-                    maxId = source.BasicSecurityEquipment[i].Id;
-                }
-                if (source.BasicSecurityEquipment[i].ProductName == model.ProductName)
-                {
-                    throw new Exception("Уже есть изделие с таким названием");
-                }
+                throw new Exception("Уже есть изделие с таким названием");
             }
-            source.BasicSecurityEquipment.Add(new BasicSecurityEquipment
+            int maxId = source.Products.Count > 0 ? source.Products.Max(rec => rec.Id) : 0;
+            source.Products.Add(new BasicSecurity
             {
                 Id = maxId + 1,
                 ProductName = model.ProductName,
                 Price = model.Price
             });
             // компоненты для изделия
-            int maxPCId = 0;
-            for (int i = 0; i < source.Equipment_BSEquipment.Count; ++i)
-            {
-                if (source.Equipment_BSEquipment[i].Id > maxPCId)
-                {
-                    maxPCId = source.Equipment_BSEquipment[i].Id;
-                }
-            }
+            int maxPCId = source.ProductComponents.Count > 0 ? 
+                                    source.ProductComponents.Max(rec => rec.Id) : 0;
             // убираем дубли по компонентам
-            for (int i = 0; i < model.ProductComponents.Count; ++i)
-            {
-                for (int j = 1; j < model.ProductComponents.Count; ++j)
-                {
-                    if(model.ProductComponents[i].ComponentId ==
-                        model.ProductComponents[j].ComponentId)
-                    {
-                        model.ProductComponents[i].Count +=
-                            model.ProductComponents[j].Count;
-                        model.ProductComponents.RemoveAt(j--);
-                    }
-                }
-            }
+            var groupComponents = model.ProductComponents
+                                        .GroupBy(rec => rec.ComponentId)
+                                        .Select(rec => new
+                                        {
+                                            ComponentId = rec.Key,
+                                            Count = rec.Sum(r => r.Count)
+                                        });
             // добавляем компоненты
-            for (int i = 0; i < model.ProductComponents.Count; ++i)
+            foreach (var groupComponent in groupComponents)
             {
-                source.Equipment_BSEquipment.Add(new Equipment_BSEquipment
+                source.ProductComponents.Add(new Equipment_BSquipment
                 {
                     Id = ++maxPCId,
                     ProductId = maxId + 1,
-                    ComponentId = model.ProductComponents[i].ComponentId,
-                    Count = model.ProductComponents[i].Count
+                    ComponentId = groupComponent.ComponentId,
+                    Count = groupComponent.Count
                 });
             }
         }
 
-        public void UpdElement(BasicSecurityEquipmentBM model)
+        public void UpdElement(BasSecurityBindingModel model)
         {
-            int index = -1;
-            for (int i = 0; i < source.BasicSecurityEquipment.Count; ++i)
+            BasicSecurity element = source.Products.FirstOrDefault(rec =>
+                                        rec.ProductName == model.ProductName && rec.Id != model.Id);
+            if (element != null)
             {
-                if (source.BasicSecurityEquipment[i].Id == model.Id)
-                {
-                    index = i;
-                }
-                if (source.BasicSecurityEquipment[i].ProductName == model.ProductName && 
-                    source.BasicSecurityEquipment[i].Id != model.Id)
-                {
-                    throw new Exception("Уже есть изделие с таким названием");
-                }
+                throw new Exception("Уже есть изделие с таким названием");
             }
-            if (index == -1)
+            element = source.Products.FirstOrDefault(rec => rec.Id == model.Id);
+            if (element == null)
             {
                 throw new Exception("Элемент не найден");
             }
-            source.BasicSecurityEquipment[index].ProductName = model.ProductName;
-            source.BasicSecurityEquipment[index].Price = model.Price;
-            int maxPCId = 0;
-            for (int i = 0; i < source.Equipment_BSEquipment.Count; ++i)
-            {
-                if (source.Equipment_BSEquipment[i].Id > maxPCId)
-                {
-                    maxPCId = source.Equipment_BSEquipment[i].Id;
-                }
-            }
+            element.ProductName = model.ProductName;
+            element.Price = model.Price;
+
+            int maxPCId = source.ProductComponents.Count > 0 ? source.ProductComponents.Max(rec => rec.Id) : 0;
             // обновляем существуюущие компоненты
-            for (int i = 0; i < source.Equipment_BSEquipment.Count; ++i)
+            var compIds = model.ProductComponents.Select(rec => rec.ComponentId).Distinct();
+            var updateComponents = source.ProductComponents
+                                            .Where(rec => rec.ProductId == model.Id &&
+                                           compIds.Contains(rec.ComponentId));
+            foreach (var updateComponent in updateComponents)
             {
-                if (source.Equipment_BSEquipment[i].ProductId == model.Id)
-                {
-                    bool flag = true;
-                    for (int j = 0; j < model.ProductComponents.Count; ++j)
-                    {
-                        // если встретили, то изменяем количество
-                        if (source.Equipment_BSEquipment[i].Id == model.ProductComponents[j].Id)
-                        {
-                            source.Equipment_BSEquipment[i].Count = model.ProductComponents[j].Count;
-                            flag = false;
-                            break;
-                        }
-                    }
-                    // если не встретили, то удаляем
-                    if(flag)
-                    {
-                        source.Equipment_BSEquipment.RemoveAt(i--);
-                    }
-                }
+                updateComponent.Count = model.ProductComponents
+                                                .FirstOrDefault(rec => rec.Id == updateComponent.Id).Count;
             }
+            source.ProductComponents.RemoveAll(rec => rec.ProductId == model.Id &&
+                                       !compIds.Contains(rec.ComponentId));
             // новые записи
-            for(int i = 0; i < model.ProductComponents.Count; ++i)
+            var groupComponents = model.ProductComponents
+                                        .Where(rec => rec.Id == 0)
+                                        .GroupBy(rec => rec.ComponentId)
+                                        .Select(rec => new
+                                        {
+                                            ComponentId = rec.Key,
+                                            Count = rec.Sum(r => r.Count)
+                                        });
+            foreach (var groupComponent in groupComponents)
             {
-                if(model.ProductComponents[i].Id == 0)
+                Equipment_BSquipment elementPC = source.ProductComponents
+                                        .FirstOrDefault(rec => rec.ProductId == model.Id &&
+                                                        rec.ComponentId == groupComponent.ComponentId);
+                if (elementPC != null)
                 {
-                    // ищем дубли
-                    for (int j = 0; j < source.Equipment_BSEquipment.Count; ++j)
+                    elementPC.Count += groupComponent.Count;
+                }
+                else
+                {
+                    source.ProductComponents.Add(new Equipment_BSquipment
                     {
-                        if (source.Equipment_BSEquipment[j].ProductId == model.Id &&
-                            source.Equipment_BSEquipment[j].ComponentId == model.ProductComponents[i].ComponentId)
-                        {
-                            source.Equipment_BSEquipment[j].Count += model.ProductComponents[i].Count;
-                            model.ProductComponents[i].Id = source.Equipment_BSEquipment[j].Id;
-                            break;
-                        }
-                    }
-                    // если не нашли дубли, то новая запись
-                    if (model.ProductComponents[i].Id == 0)
-                    {
-                        source.Equipment_BSEquipment.Add(new Equipment_BSEquipment
-                        {
-                            Id = ++maxPCId,
-                            ProductId = model.Id,
-                            ComponentId = model.ProductComponents[i].ComponentId,
-                            Count = model.ProductComponents[i].Count
-                        });
-                    }
+                        Id = ++maxPCId,
+                        ProductId = model.Id,
+                        ComponentId = groupComponent.ComponentId,
+                        Count = groupComponent.Count
+                    });
                 }
             }
         }
 
         public void DelElement(int id)
         {
-            // удаяем записи по компонентам при удалении изделия
-            for (int i = 0; i < source.Equipment_BSEquipment.Count; ++i)
+            BasicSecurity element = source.Products.FirstOrDefault(rec => rec.Id == id);
+            if (element != null)
             {
-                if (source.Equipment_BSEquipment[i].ProductId == id)
-                {
-                    source.Equipment_BSEquipment.RemoveAt(i--);
-                }
+                // удаяем записи по компонентам при удалении изделия
+                source.ProductComponents.RemoveAll(rec => rec.ProductId == id);
+                source.Products.Remove(element);
             }
-            for (int i = 0; i < source.BasicSecurityEquipment.Count; ++i)
+            else
             {
-                if (source.BasicSecurityEquipment[i].Id == id)
-                {
-                    source.BasicSecurityEquipment.RemoveAt(i);
-                    return;
-                }
+                throw new Exception("Элемент не найден");
             }
-            throw new Exception("Элемент не найден");
         }
     }
 }

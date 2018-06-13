@@ -4,6 +4,7 @@ using AbstractShopService.Interfaces;
 using AbstractShopService.ViewModels;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace AbstractShopService.ImplementationsList
 {
@@ -18,148 +19,98 @@ namespace AbstractShopService.ImplementationsList
 
         public List<StoreRoomViewModel> GetList()
         {
-            List<StoreRoomViewModel> result = new List<StoreRoomViewModel>();
-            for (int i = 0; i < source.StoreRoom.Count; ++i)
-            {
-                // требуется дополнительно получить список компонентов на складе и их количество
-                List<StoreRoomEquipmentsViewModel> StockComponents = new List<StoreRoomEquipmentsViewModel>();
-                for (int j = 0; j < source.StoreRoomEquipments.Count; ++j)
+            List<StoreRoomViewModel> result = source.Stocks
+                .Select(rec => new StoreRoomViewModel
                 {
-                    if (source.StoreRoomEquipments[j].StockId == source.StoreRoom[i].Id)
-                    {
-                        string componentName = string.Empty;
-                        for (int k = 0; k < source.Equipment.Count; ++k)
-                        {
-                            if (source.Equipment_BSEquipment[j].ComponentId == source.Equipment[k].Id)
+                    Id = rec.Id,
+                    StockName = rec.StockName,
+                    StockComponents = source.StockComponents
+                            .Where(recPC => recPC.StockId == rec.Id)
+                            .Select(recPC => new StoreRoomEquipmentViewModel
                             {
-                                componentName = source.Equipment[k].ComponentName;
-                                break;
-                            }
-                        }
-                        StockComponents.Add(new StoreRoomEquipmentsViewModel
-                        {
-                            Id = source.StoreRoomEquipments[j].Id,
-                            StockId = source.StoreRoomEquipments[j].StockId,
-                            ComponentId = source.StoreRoomEquipments[j].ComponentId,
-                            ComponentName = componentName,
-                            Count = source.StoreRoomEquipments[j].Count
-                        });
-                    }
-                }
-                result.Add(new StoreRoomViewModel
-                {
-                    Id = source.StoreRoom[i].Id,
-                    StockName = source.StoreRoom[i].StockName,
-                    StockComponents = StockComponents
-                });
-            }
+                                Id = recPC.Id,
+                                StockId = recPC.StockId,
+                                ComponentId = recPC.ComponentId,
+                                ComponentName = source.Components
+                                    .FirstOrDefault(recC => recC.Id == recPC.ComponentId)?.ComponentName,
+                                Count = recPC.Count
+                            })
+                            .ToList()
+                })
+                .ToList();
             return result;
         }
 
         public StoreRoomViewModel GetElement(int id)
         {
-            for (int i = 0; i < source.StoreRoom.Count; ++i)
+            StoreRoom element = source.Stocks.FirstOrDefault(rec => rec.Id == id);
+            if (element != null)
             {
-                // требуется дополнительно получить список компонентов на складе и их количество
-                List<StoreRoomEquipmentsViewModel> StockComponents = new List<StoreRoomEquipmentsViewModel>();
-                for (int j = 0; j < source.StoreRoomEquipments.Count; ++j)
+                return new StoreRoomViewModel
                 {
-                    if (source.StoreRoomEquipments[j].StockId == source.StoreRoom[i].Id)
-                    {
-                        string componentName = string.Empty;
-                        for (int k = 0; k < source.Equipment.Count; ++k)
-                        {
-                            if (source.Equipment_BSEquipment[j].ComponentId == source.Equipment[k].Id)
+                    Id = element.Id,
+                    StockName = element.StockName,
+                    StockComponents = source.StockComponents
+                            .Where(recPC => recPC.StockId == element.Id)
+                            .Select(recPC => new StoreRoomEquipmentViewModel
                             {
-                                componentName = source.Equipment[k].ComponentName;
-                                break;
-                            }
-                        }
-                        StockComponents.Add(new StoreRoomEquipmentsViewModel
-                        {
-                            Id = source.StoreRoomEquipments[j].Id,
-                            StockId = source.StoreRoomEquipments[j].StockId,
-                            ComponentId = source.StoreRoomEquipments[j].ComponentId,
-                            ComponentName = componentName,
-                            Count = source.StoreRoomEquipments[j].Count
-                        });
-                    }
-                }
-                if (source.StoreRoom[i].Id == id)
-                {
-                    return new StoreRoomViewModel
-                    {
-                        Id = source.StoreRoom[i].Id,
-                        StockName = source.StoreRoom[i].StockName,
-                        StockComponents = StockComponents
-                    };
-                }
+                                Id = recPC.Id,
+                                StockId = recPC.StockId,
+                                ComponentId = recPC.ComponentId,
+                                ComponentName = source.Components
+                                    .FirstOrDefault(recC => recC.Id == recPC.ComponentId)?.ComponentName,
+                                Count = recPC.Count
+                            })
+                            .ToList()
+                };
             }
             throw new Exception("Элемент не найден");
         }
 
-        public void AddElement(StoreRoomBM model)
+        public void AddElement(StoreRoomBindingModel model)
         {
-            int maxId = 0;
-            for (int i = 0; i < source.StoreRoom.Count; ++i)
+            StoreRoom element = source.Stocks.FirstOrDefault(rec => rec.StockName == model.StockName);
+            if (element != null)
             {
-                if (source.StoreRoom[i].Id > maxId)
-                {
-                    maxId = source.StoreRoom[i].Id;
-                }
-                if (source.StoreRoom[i].StockName == model.StockName)
-                {
-                    throw new Exception("Уже есть склад с таким названием");
-                }
+                throw new Exception("Уже есть склад с таким названием");
             }
-            source.StoreRoom.Add(new StoreRoom
+            int maxId = source.Stocks.Count > 0 ? source.Stocks.Max(rec => rec.Id) : 0;
+            source.Stocks.Add(new StoreRoom
             {
                 Id = maxId + 1,
                 StockName = model.StockName
             });
         }
 
-        public void UpdElement(StoreRoomBM model)
+        public void UpdElement(StoreRoomBindingModel model)
         {
-            int index = -1;
-            for (int i = 0; i < source.StoreRoom.Count; ++i)
+            StoreRoom element = source.Stocks.FirstOrDefault(rec =>
+                                        rec.StockName == model.StockName && rec.Id != model.Id);
+            if (element != null)
             {
-                if (source.StoreRoom[i].Id == model.Id)
-                {
-                    index = i;
-                }
-                if (source.StoreRoom[i].StockName == model.StockName && 
-                    source.StoreRoom[i].Id != model.Id)
-                {
-                    throw new Exception("Уже есть склад с таким названием");
-                }
+                throw new Exception("Уже есть склад с таким названием");
             }
-            if (index == -1)
+            element = source.Stocks.FirstOrDefault(rec => rec.Id == model.Id);
+            if (element == null)
             {
                 throw new Exception("Элемент не найден");
             }
-            source.StoreRoom[index].StockName = model.StockName;
+            element.StockName = model.StockName;
         }
 
         public void DelElement(int id)
         {
-            // при удалении удаляем все записи о компонентах на удаляемом складе
-            for (int i = 0; i < source.StoreRoomEquipments.Count; ++i)
+            StoreRoom element = source.Stocks.FirstOrDefault(rec => rec.Id == id);
+            if (element != null)
             {
-                if (source.StoreRoomEquipments[i].StockId == id)
-                {
-                    source.StoreRoomEquipments.RemoveAt(i--);
-                }
+                // при удалении удаляем все записи о компонентах на удаляемом складе
+                source.StockComponents.RemoveAll(rec => rec.StockId == id);
+                source.Stocks.Remove(element);
             }
-            for (int i = 0; i < source.StoreRoom.Count; ++i)
+            else
             {
-                if (source.StoreRoom[i].Id == id)
-                {
-                    source.StoreRoom.RemoveAt(i);
-                    return;
-                }
+                throw new Exception("Элемент не найден");
             }
-            throw new Exception("Элемент не найден");
         }
     }
 }
